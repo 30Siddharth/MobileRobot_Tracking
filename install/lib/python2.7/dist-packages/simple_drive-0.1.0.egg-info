@@ -1,0 +1,10 @@
+Metadata-Version: 1.0
+Name: simple_drive
+Version: 0.1.0
+Summary: A simple robot drive system that includes skid steering joystick teleoperation, control of a panning servo to look around the robot, and Arduino firmware.
+Home-page: http://wiki.ros.org/simple_drive
+Author: Daniel Snider
+Author-email: danielsnider12@gmail.com
+License: Unlicense
+Description: UNKNOWN
+Platform: UNKNOWN

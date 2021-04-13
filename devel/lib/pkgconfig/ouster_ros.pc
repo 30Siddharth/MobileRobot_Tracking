@@ -1,0 +1,8 @@
+prefix=/home/team4/catkin_ws/devel
+
+Name: ouster_ros
+Description: Description of ouster_ros
+Version: 0.1.0
+Cflags: -I/home/team4/catkin_ws/devel/include -I/home/team4/catkin_ws/src/experimental_robotics_course/src/ouster_example/ouster_ros/include
+Libs: -L${prefix}/lib -louster_ros
+Requires: roscpp message_runtime pcl_ros std_msgs sensor_msgs geometry_msgs ouster_client ouster_viz

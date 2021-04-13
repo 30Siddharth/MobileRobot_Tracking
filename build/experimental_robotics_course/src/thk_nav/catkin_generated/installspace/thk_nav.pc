@@ -1,0 +1,8 @@
+prefix=/home/team4/catkin_ws/install
+
+Name: thk_nav
+Description: Description of thk_nav
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

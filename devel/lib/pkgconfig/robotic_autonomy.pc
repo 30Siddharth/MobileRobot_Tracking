@@ -1,0 +1,8 @@
+prefix=/home/team4/catkin_ws/devel
+
+Name: robotic_autonomy
+Description: Description of robotic_autonomy
+Version: 0.0.0
+Cflags: 
+Libs: -L${prefix}/lib 
+Requires: 

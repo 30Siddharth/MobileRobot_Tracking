@@ -1,0 +1,8 @@
+prefix=/home/team4/catkin_ws/devel
+
+Name: point_cloud_io
+Description: Description of point_cloud_io
+Version: 0.3.0
+Cflags: -I/home/team4/catkin_ws/src/experimental_robotics_course/src/point_cloud_io/include
+Libs: -L${prefix}/lib 
+Requires: pcl_ros roscpp sensor_msgs
