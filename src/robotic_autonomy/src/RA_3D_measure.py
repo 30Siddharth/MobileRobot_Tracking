@@ -12,13 +12,15 @@ import imutils
 from std_msgs.msg import String
 from sensor_msgs.msg import CompressedImage
 from sensor_msgs.msg import Image
+from sensor_msgs.msg import CameraInfo
 from nav_msgs.msg import Odometry
+from geometry_msgs.msg import PoseWithCovariance
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge, CvBridgeError
 import pdb
 
-orange_lower = (13,100,150)
+orange_lower = (13,100,155)
 orange_upper = (15,255,255)
 bridge = CvBridge()
 
@@ -34,27 +36,36 @@ bridge = CvBridge()
 #     z: float
 
 class Tracker3D():
-    rgbFOV = [65,77]
-    depthFOV = [86,57]
+    rgbFOV = [69,42]
+    depthFOV = [74,62]
     pixToDegree = (np.pi/180)*float(86)/640
     center_pixel = (320,240)
+    lamb = np.linalg.norm(np.array([0.02,1,-0.003]))
+    min_error = 0.1
 
-    def __init__(self,img_topic_name="/camera/color/image_raw",depth_topic_name="/camera/depth/image_rect_raw",see_image=False):
+    def __init__(self,img_topic_name="/camera/color/image_raw",depth_topic_name="/camera/aligned_depth_to_color/image_raw",see_image=False,camerainfo_topic_name="/camera/depth/camera_info"):
         
         self.image_sub = rospy.Subscriber(img_topic_name,Image,self.image_cb)
         self.depth_sub = rospy.Subscriber(depth_topic_name,Image,self.depth_cb)
-        self.pos_pub = rospy.Publisher('ballxy',Point,queue_size=10)
+        self.camerainfo_sub = rospy.Subscriber(camerainfo_topic_name,CameraInfo,self.camerainfo_cb)
+        # self.depth_cam_info = rospy.Subscriber(depth_camera_topic,self.depth_cam_cb)
+        self.pos_pub = rospy.Publisher('ballxyz',PoseWithCovariance,queue_size=10)
         self.viz_pub = rospy.Publisher('ball_maker',Marker,queue_size=10)
         self.ballloc_pixel = [0,0]
         self.ballloc_xyz = [0,0,0]
+        self.pixelvec = None
+        self.worldvec = None
         self.learning_rate = 0.2 # = 1.0 => no averaging
         self.cv_image = None
         self.depth_image = None
+        self.K = []
+        self.Rt = np.array([[1,0,0],[0,0,1],[0,-1,-0]])
         self.mask = None
         self.d = 0.0
         self.thetax = 0.0
         self.thetay = 0.0
         self.phi = 0.0
+        self.error = self.min_error
         
         # plt.ion()
         # self.fig = plt.figure()
@@ -76,33 +87,70 @@ class Tracker3D():
     def get_depth(self):
         print(self.cv_image.shape)
         print(self.depth_image.shape)
-        xdepth = int(self.depthFOV[0]*float(self.ballloc_pixel[0]-self.center_pixel[0])/self.rgbFOV[0]) + int(640/2)
-        ydepth = int(self.depthFOV[1]*float(self.ballloc_pixel[1]-self.center_pixel[1])/self.rgbFOV[1]) + int(480/2)
-        xdepth = min(xdepth,639)
-        ydepth = min(ydepth,479)
+        xoffsets = [-1,0,1]
+        yoffsets = [-1,0,1]
+
+        avg_depth = 0.0
+        for xoffset in xoffsets:
+            for yoffset in yoffsets:
+                xcenter = max(min(self.ballloc_pixel[0]+xoffset,639),0)
+                ycenter = max(min(self.ballloc_pixel[1]+yoffset,479),0)
+                avg_depth += 0.001*self.depth_image[ycenter][xcenter]
+        avg_depth /= len(xoffsets)*len(yoffsets)
+
+        # xdepth = int(self.rgbFOV[0]*float(self.ballloc_pixel[0]-self.center_pixel[0])/self.depthFOV[0]) + int(640/2)
+        # ydepth = int(self.rgbFOV[1]*float(self.ballloc_pixel[1]-self.center_pixel[1])/self.depthFOV[1]) + int(480/2)
+        # xdepth = max(min(xdepth,639),0)
+        # ydepth = max(min(ydepth,479),0)
+        print(self.ballloc_pixel)
+        xdepth = self.ballloc_pixel[0]
+        ydepth = self.ballloc_pixel[1]
+        self.pixelvec = np.array([[xdepth],[ydepth],[1]])
 
         # xdepth = min(int(86*float(self.ballloc_pixel[0])/65),639)
         # ydepth = min(int(86*float(self.ballloc_pixel[1])/65),479)
-        print("xdepth: {}".format(xdepth))
-        self.d = 0.001*float(self.depth_image[ydepth][xdepth])
+        print("(xdepth,ydepth): ({},{})".format(xdepth,ydepth))
+        # self.d = 0.001*float(self.depth_image[ydepth][xdepth])
+        self.d = avg_depth
 
     def get_xyz(self):
         self.get_depth()
         print("depth: {}".format(self.d))
         if self.d < 0.05 or self.d > 20.0:
             return
-        print(self.ballloc_pixel)
-        self.theta = self.pixToDegree*float(self.ballloc_pixel[0]-self.center_pixel[0])
-        self.theta = self.learning_rate*self.theta + (1-self.learning_rate)*self.theta
-        x = self.d*np.tan(self.theta) #self.d*np.sin(self.theta)
-        print("theta: {}".format(self.theta))
-        self.ballloc_xyz[0] = self.learning_rate*x + (1-self.learning_rate)*x
-        self.ballloc_xyz[1] = self.learning_rate*self.d + (1-self.learning_rate)*self.ballloc_xyz[1]
+
+        self.worldvec = (self.d/self.lamb)*np.matmul(np.matmul(self.Rt,np.linalg.inv(self.K)),self.pixelvec)
+        print("world vec:")
+        print(self.worldvec)
+        
+        # Wihtout K matrix
+        # print(self.ballloc_pixel)
+        # self.theta = self.pixToDegree*float(self.ballloc_pixel[0]-self.center_pixel[0])
+        # self.theta = self.learning_rate*self.theta + (1-self.learning_rate)*self.theta
+        # print("theta: {}".format(self.theta))
+        # x = self.d*np.tan(self.theta) #self.d*np.sin(self.theta)
+        # y = self.d
+        y = -self.worldvec[0]
+        x = self.worldvec[1]
+        # z = self.worldvec[2]
+        z = 0.0
+
+        # Set x,y coord
+        self.ballloc_xyz[0] = self.learning_rate*x + (1-self.learning_rate)*self.ballloc_xyz[0]
+        self.ballloc_xyz[1] = self.learning_rate*y + (1-self.learning_rate)*self.ballloc_xyz[1]
+        self.ballloc_xyz[2] = self.learning_rate*z + (1-self.learning_rate)*self.ballloc_xyz[2]
+
+        self.error = max(self.min_error,(self.d-0.3)*self.min_error)
 
     def pub_xy(self):
-        msg = Point()
-        msg.x = self.ballloc_xyz[0]
-        msg.y = self.ballloc_xyz[1]
+        msg = PoseWithCovariance()
+        msg.pose.position.x = self.ballloc_xyz[0]
+        msg.pose.position.y = self.ballloc_xyz[1]
+        msg.pose.position.z = self.ballloc_xyz[2]
+        msg.covariance[0] = self.error
+        msg.covariance[8] = self.error
+        msg.covariance[15] = self.error
+        # msg.covariance[15] = 0.0
         self.pos_pub.publish(msg)
 
     def pub_viz(self):
@@ -110,12 +158,13 @@ class Tracker3D():
         msg.type = msg.SPHERE
         msg.color.r = 1.0
         msg.color.a = 1.0
-        msg.scale.x = 0.2
-        msg.scale.y = 0.2
-        msg.scale.z = 0.2
+        msg.scale.x = self.error
+        msg.scale.y = self.error
+        msg.scale.z = self.error
         msg.header.frame_id = "/camera_link"
         msg.pose.position.x = self.ballloc_xyz[0]
         msg.pose.position.y = self.ballloc_xyz[1]
+        msg.pose.position.z = self.ballloc_xyz[2]
         self.viz_pub.publish(msg)
 
     def viz_3d(self):
@@ -147,18 +196,32 @@ class Tracker3D():
         center = None
 	    #print (cnts)
 	    # only proceed if at least one contour was found
+        
         if len(cnts)>0:
             c = max(cnts, key=cv2.contourArea)
             ((x,y),radius) = cv2.minEnclosingCircle(c)
             self.ballloc_pixel = [int(x),int(y)]
+            
             if radius > 3:
                 cv2.circle(self.cv_image, (int(x),int(y)), int(radius),(0,0,255),2)
+
+        
 
     def depth_cb(self,data):
         try:
             self.depth_image = bridge.imgmsg_to_cv2(data,"16UC1")
         except CvBridgeError as e:
             print(e)
+
+    def camerainfo_cb(self,data):
+        # print("Camera info:")
+        # print(type(data.K))
+        # print(np.reshape(np.array(data.K),[3,3]))
+        self.K = np.reshape(np.array(data.K),[3,3])
+        # print(np.linalg.inv(self.K))
+
+    # def depth_cam_cb(self,data):
+    #     print(type(data))
 
 if __name__ == "__main__":
     rospy.init_node("measure_3d")
@@ -172,6 +235,7 @@ if __name__ == "__main__":
         print("Ball location: ({},{})".format(tracker.ballloc_xyz[0],tracker.ballloc_xyz[1]))
         if viz_img:
             # tracker.viz_3d()
+            cv2.circle(tracker.cv_image, (int(tracker.center_pixel[0]),int(tracker.center_pixel[1])), int(10),(255,0,0),2)
             cv2.imshow("Image window",tracker.cv_image)
             # cv2.imshow("Image window",tracker.mask)
             cv2.waitKey(1) & 0xFF
