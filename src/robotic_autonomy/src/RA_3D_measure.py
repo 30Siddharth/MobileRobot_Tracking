@@ -43,7 +43,7 @@ class Tracker3D():
     lamb = np.linalg.norm(np.array([0.02,1,-0.003]))
     min_error = 0.1
 
-    def __init__(self,img_topic_name="/camera/color/image_raw",depth_topic_name="/camera/aligned_depth_to_color/image_raw",see_image=False,camerainfo_topic_name="/camera/depth/camera_info"):
+    def __init__(self,img_topic_name="/d400/color/image_raw",depth_topic_name="/d400/aligned_depth_to_color/image_raw",see_image=False,camerainfo_topic_name="/camera/depth/camera_info"):
         
         self.image_sub = rospy.Subscriber(img_topic_name,Image,self.image_cb)
         self.depth_sub = rospy.Subscriber(depth_topic_name,Image,self.depth_cb)
