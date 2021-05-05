@@ -19,6 +19,7 @@ from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
 from cv_bridge import CvBridge, CvBridgeError
 import pdb
+import tf
 
 orange_lower = (13,100,155)
 orange_upper = (15,255,255)
@@ -43,7 +44,7 @@ class Tracker3D():
     lamb = np.linalg.norm(np.array([0.02,1,-0.003]))
     min_error = 0.1
 
-    def __init__(self,img_topic_name="/d400/color/image_raw",depth_topic_name="/d400/aligned_depth_to_color/image_raw",see_image=False,camerainfo_topic_name="/camera/depth/camera_info"):
+    def __init__(self,img_topic_name="/d400/color/image_raw",depth_topic_name="/d400/aligned_depth_to_color/image_raw",see_image=False,camerainfo_topic_name="/d400/depth/camera_info"):
         
         self.image_sub = rospy.Subscriber(img_topic_name,Image,self.image_cb)
         self.depth_sub = rospy.Subscriber(depth_topic_name,Image,self.depth_cb)
@@ -66,6 +67,8 @@ class Tracker3D():
         self.thetay = 0.0
         self.phi = 0.0
         self.error = self.min_error
+
+        self.listener = tf.TransformListener()
         
         # plt.ion()
         # self.fig = plt.figure()
@@ -120,9 +123,10 @@ class Tracker3D():
             return
 
         self.worldvec = (self.d/self.lamb)*np.matmul(np.matmul(self.Rt,np.linalg.inv(self.K)),self.pixelvec)
-        print("world vec:")
-        print(self.worldvec)
-        
+        # print("world vec:")
+        # print(self.worldvec)
+
+       
         # Wihtout K matrix
         # print(self.ballloc_pixel)
         # self.theta = self.pixToDegree*float(self.ballloc_pixel[0]-self.center_pixel[0])
@@ -161,7 +165,7 @@ class Tracker3D():
         msg.scale.x = self.error
         msg.scale.y = self.error
         msg.scale.z = self.error
-        msg.header.frame_id = "/camera_link"
+        msg.header.frame_id = "/map"
         msg.pose.position.x = self.ballloc_xyz[0]
         msg.pose.position.y = self.ballloc_xyz[1]
         msg.pose.position.z = self.ballloc_xyz[2]

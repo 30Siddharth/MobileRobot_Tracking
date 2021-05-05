@@ -1,0 +1,15 @@
+digraph G {
+"d400_link" -> "d400_depth_frame"[label="Broadcaster: /d400/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"t265_link" -> "d400_link"[label="Broadcaster: /t265_to_d400\nAverage rate: 10.193 Hz\nMost recent transform: 1619720107.769 ( -0.060 sec old)\nBuffer length: 4.905 sec\n"];
+"d400_depth_frame" -> "d400_depth_optical_frame"[label="Broadcaster: /d400/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"d400_link" -> "d400_color_frame"[label="Broadcaster: /d400/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"d400_aligned_depth_to_color_frame" -> "d400_color_optical_frame"[label="Broadcaster: /d400/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"d400_link" -> "d400_aligned_depth_to_color_frame"[label="Broadcaster: /d400/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"t265_pose_frame" -> "t265_link"[label="Broadcaster: /t265/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1619720107.709 sec old)\nBuffer length: 0.000 sec\n"];
+"t265_odom_frame" -> "t265_pose_frame"[label="Broadcaster: /t265/realsense2_camera_manager\nAverage rate: 200.400 Hz\nMost recent transform: 1619720107.708 ( 0.001 sec old)\nBuffer length: 4.975 sec\n"];
+"map" -> "t265_odom_frame"[label="Broadcaster: /rtabmap/rtabmap\nAverage rate: 20.202 Hz\nMost recent transform: 1619720107.780 ( -0.072 sec old)\nBuffer length: 4.950 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1619720107.709"[ shape=plaintext ] ;
+ }->"map";
+}
